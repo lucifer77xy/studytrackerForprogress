@@ -1,0 +1,6 @@
+{
+  "name": "StudyTracker - Collaborative Study Portal",
+  "description": "Real-time collaborative study tracker with live document editing, friend progress tracking, synchronized focus rooms, and weekly productivity milestones.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

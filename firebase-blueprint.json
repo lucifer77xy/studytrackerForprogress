@@ -1,0 +1,141 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile with study statistics, streak, level, and friend connections.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique user ID" },
+        "displayName": { "type": "string", "maxLength": 100, "description": "Display name of the user" },
+        "email": { "type": "string", "format": "email", "maxLength": 150, "description": "Google authenticated email" },
+        "photoURL": { "type": "string", "maxLength": 500, "description": "User avatar URL" },
+        "friendCode": { "type": "string", "maxLength": 20, "description": "Shareable 6-digit friend invite code" },
+        "level": { "type": "number", "description": "Current scholar level" },
+        "xp": { "type": "number", "description": "Accumulated experience points" },
+        "streak": { "type": "number", "description": "Current consecutive active study days" },
+        "bestStreak": { "type": "number", "description": "Longest active study streak achieved" },
+        "totalMinutes": { "type": "number", "description": "Total cumulative focus minutes" },
+        "totalSessions": { "type": "number", "description": "Total completed study sessions" },
+        "status": { "type": "string", "enum": ["idle", "studying", "break"], "description": "Current real-time activity status" },
+        "currentSubject": { "type": "string", "maxLength": 100, "description": "Subject currently being focused on" },
+        "friends": { "type": "array", "description": "List of friend user IDs connected to this user" },
+        "updatedAt": { "type": "string", "description": "Last updated timestamp" },
+        "createdAt": { "type": "string", "description": "Account creation timestamp" }
+      },
+      "required": ["id", "displayName", "email", "friendCode", "level", "xp", "streak"]
+    },
+    "StudyRoom": {
+      "title": "StudyRoom",
+      "description": "Live virtual study room with synchronized timer, participants, and real-time notes.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique room ID" },
+        "code": { "type": "string", "maxLength": 20, "description": "Unique room invite code" },
+        "title": { "type": "string", "maxLength": 100, "description": "Study room title or subject topic" },
+        "subject": { "type": "string", "maxLength": 100, "description": "Subject category" },
+        "hostId": { "type": "string", "description": "UID of room creator" },
+        "hostName": { "type": "string", "maxLength": 100, "description": "Host display name" },
+        "isTimerRunning": { "type": "boolean", "description": "Whether synchronized study timer is running" },
+        "timerSecondsRemaining": { "type": "number", "description": "Seconds left on room timer" },
+        "timerMode": { "type": "string", "enum": ["pomodoro", "short_break", "long_break"], "description": "Current timer cycle phase" },
+        "collaborativeNotes": { "type": "string", "maxLength": 100000, "description": "Real-time synchronized study notes text" },
+        "activeMemberIds": { "type": "array", "description": "List of currently active user IDs in the room" },
+        "activeMemberNames": { "type": "array", "description": "List of currently active user names in the room" },
+        "updatedAt": { "type": "string", "description": "Last update timestamp" },
+        "createdAt": { "type": "string", "description": "Room creation timestamp" }
+      },
+      "required": ["id", "code", "title", "hostId", "hostName"]
+    },
+    "RoomMessage": {
+      "title": "RoomMessage",
+      "description": "Chat message or cheer within a study room.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Message ID" },
+        "roomId": { "type": "string", "description": "Parent room ID" },
+        "userId": { "type": "string", "description": "Author UID" },
+        "userName": { "type": "string", "maxLength": 100, "description": "Author display name" },
+        "content": { "type": "string", "maxLength": 1000, "description": "Message text or reaction cheer" },
+        "createdAt": { "type": "string", "description": "Message creation timestamp" }
+      },
+      "required": ["id", "roomId", "userId", "userName", "content"]
+    },
+    "StudySession": {
+      "title": "StudySession",
+      "description": "Logged completed study session with duration, subject, and XP earned.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Session ID" },
+        "userId": { "type": "string", "description": "Student UID" },
+        "userName": { "type": "string", "maxLength": 100, "description": "Student display name" },
+        "subject": { "type": "string", "maxLength": 100, "description": "Subject studied" },
+        "durationMinutes": { "type": "number", "description": "Minutes completed" },
+        "xpEarned": { "type": "number", "description": "XP gained from this session" },
+        "notes": { "type": "string", "maxLength": 5000, "description": "Session summary or reflection" },
+        "completedAt": { "type": "string", "description": "Completion ISO string or timestamp" },
+        "createdAt": { "type": "string", "description": "Record creation timestamp" }
+      },
+      "required": ["id", "userId", "subject", "durationMinutes", "xpEarned"]
+    },
+    "StudyGoal": {
+      "title": "StudyGoal",
+      "description": "Personal target focus goal with target minutes and deadline.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Goal ID" },
+        "userId": { "type": "string", "description": "Owner UID" },
+        "title": { "type": "string", "maxLength": 150, "description": "Goal description" },
+        "targetMinutes": { "type": "number", "description": "Target study duration in minutes" },
+        "currentMinutes": { "type": "number", "description": "Progress in minutes" },
+        "completed": { "type": "boolean", "description": "Whether goal has been achieved" },
+        "deadline": { "type": "string", "maxLength": 50, "description": "Target completion date" },
+        "createdAt": { "type": "string", "description": "Goal creation timestamp" }
+      },
+      "required": ["id", "userId", "title", "targetMinutes"]
+    },
+    "CollaborativeDoc": {
+      "title": "CollaborativeDoc",
+      "description": "Multi-user live synchronized study document or summary notes.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Document ID" },
+        "title": { "type": "string", "maxLength": 200, "description": "Document title" },
+        "content": { "type": "string", "maxLength": 100000, "description": "Document markdown or rich content" },
+        "ownerId": { "type": "string", "description": "Author UID" },
+        "ownerName": { "type": "string", "maxLength": 100, "description": "Author name" },
+        "subject": { "type": "string", "maxLength": 100, "description": "Subject category" },
+        "collaborators": { "type": "array", "description": "User IDs allowed to view and edit" },
+        "lastEditorName": { "type": "string", "maxLength": 100, "description": "Name of user who last modified the doc" },
+        "updatedAt": { "type": "string", "description": "Last updated timestamp" },
+        "createdAt": { "type": "string", "description": "Creation timestamp" }
+      },
+      "required": ["id", "title", "ownerId", "ownerName"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User profiles and study telemetry"
+    },
+    "/study_rooms/{roomId}": {
+      "schema": { "$ref": "#/entities/StudyRoom" },
+      "description": "Real-time collaborative study rooms with synchronized timer and notes"
+    },
+    "/study_rooms/{roomId}/messages/{messageId}": {
+      "schema": { "$ref": "#/entities/RoomMessage" },
+      "description": "Real-time in-room messages and peer encouragement cheers"
+    },
+    "/sessions/{sessionId}": {
+      "schema": { "$ref": "#/entities/StudySession" },
+      "description": "Logged study sessions for weekly productivity and charts"
+    },
+    "/goals/{goalId}": {
+      "schema": { "$ref": "#/entities/StudyGoal" },
+      "description": "Personal active study milestones and goals"
+    },
+    "/collaborative_docs/{docId}": {
+      "schema": { "$ref": "#/entities/CollaborativeDoc" },
+      "description": "Live collaborative study notes and documents synchronized across friends"
+    }
+  }
+}

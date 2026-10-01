@@ -39,6 +39,8 @@ export const QuickSearchModal: React.FC<QuickSearchModalProps> = ({
   const items = [
     { title: 'Dashboard', category: 'Navigation', icon: LayoutDashboard, tab: 'dashboard' as NavTab },
     { title: 'Start Focus Timer', category: 'Study Actions', icon: Timer, action: onStartFocus },
+    { title: 'Study Partner (Live Duo)', category: 'Collaboration', icon: Users, tab: 'partner' as NavTab },
+    { title: 'Gemini AI Tutor & Q&A', category: 'AI Learning', icon: Layers, tab: 'ai-tutor' as NavTab },
     { title: 'Study Rooms & Squad Sync', category: 'Collaboration', icon: Users, tab: 'study-rooms' as NavTab },
     { title: 'Collaborative Notes', category: 'Collaboration', icon: FileText, tab: 'collab-notes' as NavTab },
     { title: 'Connect Friends & Progress', category: 'Social', icon: Users, tab: 'friends' as NavTab },

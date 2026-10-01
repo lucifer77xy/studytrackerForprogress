@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { TimerProvider, useTimer } from './context/TimerContext';
 import { Sidebar, NavTab } from './components/Sidebar';
 import { HeaderBanner } from './components/HeaderBanner';
 import { MetricCards } from './components/MetricCards';
@@ -12,32 +13,36 @@ import { LevelProgressBar } from './components/LevelProgressBar';
 import { ChartsRow } from './components/ChartsRow';
 import { QuickAccessRow } from './components/QuickAccessRow';
 import { FocusTimerModal } from './components/FocusTimerModal';
+import { FloatingTimerWidget } from './components/FloatingTimerWidget';
 import { CollaborativeRoomView } from './components/CollaborativeRoomView';
 import { CollabDocsView } from './components/CollabDocsView';
 import { FriendsView } from './components/FriendsView';
+import { PartnerLiveView } from './components/PartnerLiveView';
+import { GeminiTutorModal } from './components/GeminiTutorModal';
 import { ProductivityDashboard } from './components/ProductivityDashboard';
 import { GoalsView } from './components/GoalsView';
 import { FlashcardsView } from './components/FlashcardsView';
 import { QuickSearchModal } from './components/QuickSearchModal';
 import { LoginScreen } from './components/LoginScreen';
-import { Sparkles, Bell } from 'lucide-react';
+import { Sparkles, Bot } from 'lucide-react';
 
 const MainApp: React.FC = () => {
   const { user, profile, loading } = useAuth();
+  const { startTimer, openModal } = useTimer();
 
   const [currentTab, setCurrentTab] = useState<NavTab>('dashboard');
-  const [isFocusModalOpen, setIsFocusModalOpen] = useState(false);
   const [isQuickSearchOpen, setIsQuickSearchOpen] = useState(false);
-  const [timerMinutes, setTimerMinutes] = useState(25);
-  const [timerSubject, setTimerSubject] = useState('General Study');
+  const [isGeminiModalOpen, setIsGeminiModalOpen] = useState(false);
   const [initialRoomCode, setInitialRoomCode] = useState<string | null>(null);
   const [initialFriendCode, setInitialFriendCode] = useState<string | null>(null);
+  const [initialPartnerCode, setInitialPartnerCode] = useState<string | null>(null);
 
-  // Check URL parameters on mount (?room=XYZ or ?join_friend=ABC)
+  // Check URL parameters on mount (?room=XYZ, ?join_friend=ABC, ?partner=DEF)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const roomParam = params.get('room');
     const friendParam = params.get('join_friend');
+    const partnerParam = params.get('partner');
 
     if (roomParam) {
       setInitialRoomCode(roomParam);
@@ -45,6 +50,9 @@ const MainApp: React.FC = () => {
     } else if (friendParam) {
       setInitialFriendCode(friendParam);
       setCurrentTab('friends');
+    } else if (partnerParam) {
+      setInitialPartnerCode(partnerParam);
+      setCurrentTab('partner');
     }
   }, []);
 
@@ -61,9 +69,8 @@ const MainApp: React.FC = () => {
   }, []);
 
   const handleStartSession = (presetMinutes = 25, subject = 'General Study') => {
-    setTimerMinutes(presetMinutes);
-    setTimerSubject(subject);
-    setIsFocusModalOpen(true);
+    startTimer(presetMinutes, subject);
+    openModal();
   };
 
   // If loading authentication state, show sleek loader
@@ -97,6 +104,8 @@ const MainApp: React.FC = () => {
         onSelectTab={(tab) => {
           if (tab === 'focus-timer') {
             handleStartSession(25, 'Focus Session');
+          } else if (tab === 'ai-tutor') {
+            setIsGeminiModalOpen(true);
           } else {
             setCurrentTab(tab);
           }
@@ -117,17 +126,34 @@ const MainApp: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-3">
+            {/* Gemini Tutor trigger button in header */}
+            <button
+              onClick={() => setIsGeminiModalOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-500/15 border border-purple-500/30 text-purple-300 text-xs font-semibold hover:bg-purple-500/25 transition-colors cursor-pointer"
+            >
+              <Bot className="w-3.5 h-3.5 text-amber-400" />
+              <span>Ask Gemini Tutor</span>
+            </button>
+
+            <button
+              onClick={() => setCurrentTab('partner')}
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/25 text-cyan-300 text-xs font-semibold hover:bg-cyan-500/20 transition-colors cursor-pointer"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+              <span>Partner Duo</span>
+            </button>
+
             <button
               onClick={() => setCurrentTab('study-rooms')}
-              className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-emerald-300 text-xs font-semibold hover:bg-emerald-500/20 transition-colors cursor-pointer"
+              className="hidden md:flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-emerald-300 text-xs font-semibold hover:bg-emerald-500/20 transition-colors cursor-pointer"
             >
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              <span>Live Study Rooms</span>
+              <span>Live Rooms</span>
             </button>
 
             <button
               onClick={() => setCurrentTab('friends')}
-              className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-300 text-xs font-semibold hover:bg-purple-500/20 transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/[0.05] border border-white/[0.08] text-slate-300 text-xs font-semibold hover:bg-white/[0.1] transition-colors cursor-pointer"
             >
               <span>Code: {profile?.friendCode}</span>
             </button>
@@ -165,12 +191,18 @@ const MainApp: React.FC = () => {
                 onNavigateTab={(tab) => {
                   if (tab === 'focus-timer') {
                     handleStartSession(25, 'Focus Session');
+                  } else if (tab === 'ai-tutor') {
+                    setIsGeminiModalOpen(true);
                   } else {
                     setCurrentTab(tab);
                   }
                 }}
               />
             </>
+          )}
+
+          {currentTab === 'partner' && (
+            <PartnerLiveView initialPartnerCode={initialPartnerCode} />
           )}
 
           {currentTab === 'study-rooms' && (
@@ -182,8 +214,8 @@ const MainApp: React.FC = () => {
           {currentTab === 'friends' && (
             <FriendsView
               initialFriendCode={initialFriendCode}
-              onJoinStudyWithFriend={(friendName) => {
-                setCurrentTab('study-rooms');
+              onJoinStudyWithFriend={() => {
+                setCurrentTab('partner');
               }}
             />
           )}
@@ -206,7 +238,13 @@ const MainApp: React.FC = () => {
               </div>
               <QuickAccessRow
                 onStartSession={handleStartSession}
-                onNavigateTab={(tab) => setCurrentTab(tab)}
+                onNavigateTab={(tab) => {
+                  if (tab === 'ai-tutor') {
+                    setIsGeminiModalOpen(true);
+                  } else {
+                    setCurrentTab(tab);
+                  }
+                }}
               />
             </div>
           )}
@@ -214,18 +252,32 @@ const MainApp: React.FC = () => {
       </main>
 
       {/* Focus Timer Modal */}
-      <FocusTimerModal
-        isOpen={isFocusModalOpen}
-        onClose={() => setIsFocusModalOpen(false)}
-        initialMinutes={timerMinutes}
-        initialSubject={timerSubject}
+      <FocusTimerModal />
+
+      {/* Floating Timer Mini Widget (persists across all pages when timer runs in background) */}
+      <FloatingTimerWidget />
+
+      {/* Gemini AI Study Tutor Modal */}
+      <GeminiTutorModal
+        isOpen={isGeminiModalOpen}
+        onClose={() => setIsGeminiModalOpen(false)}
+        onSaveToNotes={(content) => {
+          setCurrentTab('collab-notes');
+          setIsGeminiModalOpen(false);
+        }}
       />
 
       {/* Quick Search Palette */}
       <QuickSearchModal
         isOpen={isQuickSearchOpen}
         onClose={() => setIsQuickSearchOpen(false)}
-        onNavigate={(tab) => setCurrentTab(tab)}
+        onNavigate={(tab) => {
+          if (tab === 'ai-tutor') {
+            setIsGeminiModalOpen(true);
+          } else {
+            setCurrentTab(tab);
+          }
+        }}
         onStartFocus={() => handleStartSession(25, 'Quick Focus')}
       />
     </div>
@@ -235,7 +287,9 @@ const MainApp: React.FC = () => {
 export default function App() {
   return (
     <AuthProvider>
-      <MainApp />
+      <TimerProvider>
+        <MainApp />
+      </TimerProvider>
     </AuthProvider>
   );
 }

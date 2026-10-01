@@ -150,5 +150,14 @@ service cloud.firestore {
                         (incoming().collaborators is list && request.auth.uid in incoming().collaborators));
       allow delete: if isSignedIn() && isValidId(docId) && existing().ownerId == request.auth.uid;
     }
+
+    // Live study partnerships
+    match /partnerships/{partnerId} {
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(partnerId);
+      allow update: if isSignedIn() && isValidId(partnerId);
+      allow delete: if isSignedIn() && isValidId(partnerId);
+    }
   }
 }

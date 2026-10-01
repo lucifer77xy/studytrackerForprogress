@@ -154,16 +154,16 @@ export const QuickAccessRow: React.FC<QuickAccessRowProps> = ({
             <span className="text-[10px] font-medium">Ranks</span>
           </button>
 
-          {/* 5. AI Tutor / Rooms */}
+          {/* 5. AI Tutor */}
           <button
-            onClick={() => onNavigateTab('study-rooms')}
+            onClick={() => onNavigateTab('ai-tutor')}
             className="flex flex-col items-center justify-center gap-1 p-2.5 rounded-xl bg-white/[0.04] border border-white/[0.06] hover:bg-purple-600/20 hover:border-purple-500/40 text-slate-300 hover:text-white transition-all cursor-pointer group"
           >
             <Bot className="w-4 h-4 text-cyan-400 group-hover:scale-110 transition-transform" />
-            <span className="text-[10px] font-medium">Squad</span>
+            <span className="text-[10px] font-medium">AI Tutor</span>
           </button>
 
-          {/* 6. Quiz */}
+          {/* 6. Notes */}
           <button
             onClick={() => onNavigateTab('collab-notes')}
             className="flex flex-col items-center justify-center gap-1 p-2.5 rounded-xl bg-white/[0.04] border border-white/[0.06] hover:bg-purple-600/20 hover:border-purple-500/40 text-slate-300 hover:text-white transition-all cursor-pointer group"
@@ -172,13 +172,13 @@ export const QuickAccessRow: React.FC<QuickAccessRowProps> = ({
             <span className="text-[10px] font-medium">Notes</span>
           </button>
 
-          {/* 7. Mood */}
+          {/* 7. Partner Live */}
           <button
-            onClick={() => onNavigateTab('friends')}
-            className="flex flex-col items-center justify-center gap-1 p-2.5 rounded-xl bg-white/[0.04] border border-white/[0.06] hover:bg-purple-600/20 hover:border-purple-500/40 text-slate-300 hover:text-white transition-all cursor-pointer group"
+            onClick={() => onNavigateTab('partner')}
+            className="flex flex-col items-center justify-center gap-1 p-2.5 rounded-xl bg-white/[0.04] border border-white/[0.06] hover:bg-cyan-600/20 hover:border-cyan-500/40 text-slate-300 hover:text-white transition-all cursor-pointer group"
           >
-            <Smile className="w-4 h-4 text-rose-400 group-hover:scale-110 transition-transform" />
-            <span className="text-[10px] font-medium">Friends</span>
+            <Smile className="w-4 h-4 text-cyan-400 group-hover:scale-110 transition-transform" />
+            <span className="text-[10px] font-medium">Partner</span>
           </button>
 
           {/* 8. Ambient Music Player */}

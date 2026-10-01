@@ -1,5 +1,6 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
+import { AppLogo } from './AppLogo';
 import {
   Sparkles,
   Search,
@@ -40,6 +41,7 @@ interface SidebarProps {
   currentTab: NavTab;
   onSelectTab: (tab: NavTab) => void;
   onOpenQuickSearch: () => void;
+  onOpenProfile?: () => void;
   activeRoomCount?: number;
 }
 
@@ -47,18 +49,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
   currentTab,
   onSelectTab,
   onOpenQuickSearch,
+  onOpenProfile,
   activeRoomCount = 0
 }) => {
-  const { profile, logout } = useAuth();
+  const { profile, user, logout } = useAuth();
+  const displayName = profile?.displayName || user?.displayName || 'Scholar';
+  const displayEmail = profile?.email || user?.email || 'StudyTracker Scholar';
+  const displayPhoto = profile?.photoURL || user?.photoURL || '';
 
   return (
     <aside className="w-64 bg-[#0a0a12]/95 border-r border-white/[0.07] flex flex-col justify-between h-screen sticky top-0 overflow-y-auto select-none font-['Plus_Jakarta_Sans',sans-serif] scrollbar-thin scrollbar-thumb-white/10 z-20">
       <div className="p-4 space-y-5">
         {/* Logo and Brand */}
         <div className="flex items-center gap-3 px-2 py-1">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-purple-600 via-indigo-600 to-purple-500 flex items-center justify-center shadow-lg shadow-purple-500/25 ring-1 ring-purple-400/30">
-            <Sparkles className="w-5 h-5 text-white" />
-          </div>
+          <AppLogo size={36} />
           <div>
             <h1 className="text-base font-bold tracking-tight text-white leading-tight">StudyTracker</h1>
             <p className="text-[11px] font-medium text-slate-400">Student Portal</p>
@@ -337,35 +341,42 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         {/* User Card */}
-        <div className="p-2.5 rounded-xl bg-white/[0.04] border border-white/[0.08] flex items-center justify-between gap-2">
+        <div
+          onClick={onOpenProfile}
+          title="Click to view & edit scholar profile"
+          className="p-2.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.07] border border-white/[0.08] hover:border-purple-500/40 transition-all flex items-center justify-between gap-2 cursor-pointer group"
+        >
           <div className="flex items-center gap-2.5 min-w-0">
-            {profile?.photoURL ? (
+            {displayPhoto ? (
               <img
-                src={profile.photoURL}
-                alt={profile.displayName}
-                className="w-8 h-8 rounded-full border border-purple-500/40 object-cover"
+                src={displayPhoto}
+                alt={displayName}
+                className="w-8 h-8 rounded-full border border-purple-500/40 object-cover shrink-0"
               />
             ) : (
-              <div className="w-8 h-8 rounded-full bg-purple-600 text-white font-bold text-xs flex items-center justify-center ring-1 ring-purple-400">
-                {profile?.displayName?.charAt(0).toUpperCase() || 'S'}
+              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-purple-600 to-indigo-600 text-white font-bold text-xs flex items-center justify-center ring-1 ring-purple-400 shrink-0">
+                {displayName.charAt(0).toUpperCase()}
               </div>
             )}
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-bold text-white truncate leading-tight">
-                {profile?.displayName || 'Student'}
+              <p className="text-xs font-bold text-white truncate leading-tight group-hover:text-purple-300 transition-colors">
+                {displayName}
               </p>
-              <p className="text-[10px] text-slate-400 flex items-center gap-1">
-                <span>Student</span>
-                <span className="w-1 h-1 rounded-full bg-slate-500" />
-                <span className="text-purple-400 font-mono">{profile?.friendCode}</span>
+              <p className="text-[10px] text-slate-400 truncate flex items-center gap-1">
+                <span className="truncate">{displayEmail.split('@')[0]}</span>
+                <span className="w-1 h-1 rounded-full bg-slate-500 shrink-0" />
+                <span className="text-purple-400 font-mono shrink-0">{profile?.friendCode}</span>
               </p>
             </div>
           </div>
 
           <button
-            onClick={logout}
+            onClick={(e) => {
+              e.stopPropagation();
+              logout();
+            }}
             title="Sign out"
-            className="p-1.5 rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer shrink-0"
           >
             <LogOut className="w-4 h-4" />
           </button>

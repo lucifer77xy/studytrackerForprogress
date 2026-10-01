@@ -11,7 +11,7 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = ({
   onStartStudying,
   onOpenSchedule
 }) => {
-  const { profile, recentSessions } = useAuth();
+  const { profile, user, recentSessions } = useAuth();
 
   // Determine time of day greeting
   const hour = new Date().getHours();
@@ -48,8 +48,13 @@ export const HeaderBanner: React.FC<HeaderBannerProps> = ({
       ? 'Consistent Focus'
       : 'Peak Mastery';
 
-  // Extract first name
-  const firstName = profile?.displayName?.split(' ')[0] || 'Scholar';
+  // Extract first name, prioritizing verified Google name
+  const nameToUse = (profile?.displayName && profile.displayName.toLowerCase() !== 'student')
+    ? profile.displayName
+    : (user?.displayName && user.displayName.toLowerCase() !== 'student')
+    ? user.displayName
+    : user?.email ? user.email.split('@')[0].replace(/[._-]+/g, ' ') : 'Scholar';
+  const firstName = nameToUse.split(' ')[0] || 'Scholar';
 
   return (
     <div className="relative rounded-2xl bg-gradient-to-r from-[#170e2f] via-[#101026] to-[#0d122b] border border-purple-500/20 p-6 md:p-8 overflow-hidden shadow-2xl shadow-purple-950/40 font-['Plus_Jakarta_Sans',sans-serif]">

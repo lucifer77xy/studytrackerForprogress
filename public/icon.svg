@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <rect width="512" height="512" fill="#000000" />
+  <!-- Rounded container -->
+  <g transform="translate(64, 64)">
+    <defs>
+      <clipPath id="tileClip">
+        <rect width="384" height="384" rx="80" ry="80" />
+      </clipPath>
+    </defs>
+    <!-- Background border -->
+    <rect width="384" height="384" rx="80" ry="80" fill="#2d2f36" stroke="#121316" stroke-width="16" />
+    <g clip-path="url(#tileClip)">
+      <!-- Left half -->
+      <rect x="0" y="0" width="192" height="384" fill="#26282e" />
+      <!-- Right half -->
+      <rect x="192" y="0" width="192" height="384" fill="#32353d" />
+      <!-- Center Slash / -->
+      <line x1="228" y1="120" x2="156" y2="264" stroke="#ffffff" stroke-width="26" stroke-linecap="round" />
+      <!-- Left Angle < -->
+      <path d="M 144 148 L 74 192 L 144 236" fill="none" stroke="#ffffff" stroke-width="26" stroke-linecap="round" stroke-linejoin="round" />
+      <!-- Right Angle > -->
+      <path d="M 240 148 L 310 192 L 240 236" fill="none" stroke="#ffffff" stroke-width="26" stroke-linecap="round" stroke-linejoin="round" />
+    </g>
+  </g>
+</svg>

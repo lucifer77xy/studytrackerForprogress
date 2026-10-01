@@ -18,6 +18,7 @@ import {
   Zap
 } from 'lucide-react';
 import { firebaseConfig } from '../lib/firebase';
+import { AppLogo } from './AppLogo';
 
 export const LoginScreen: React.FC = () => {
   const { loginWithGoogle, quickLoginWithGoogleAccount } = useAuth();
@@ -60,7 +61,7 @@ export const LoginScreen: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
-      await quickLoginWithGoogleAccount(emailInput.trim(), nameInput.trim() || 'Student');
+      await quickLoginWithGoogleAccount(emailInput.trim(), nameInput.trim() || undefined);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error logging in');
     } finally {
@@ -90,9 +91,7 @@ export const LoginScreen: React.FC = () => {
       {/* Top Navigation */}
       <header className="px-6 md:px-10 py-5 flex items-center justify-between border-b border-white/[0.06] backdrop-blur-md relative z-10">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-purple-500/25 ring-1 ring-purple-400/30">
-            <Sparkles className="w-5 h-5 text-white" />
-          </div>
+          <AppLogo size={42} />
           <div>
             <span className="text-xl font-bold tracking-tight bg-gradient-to-r from-white via-slate-100 to-slate-300 bg-clip-text text-transparent">
               StudyTracker

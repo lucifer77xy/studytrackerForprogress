@@ -23,8 +23,9 @@ import { ProductivityDashboard } from './components/ProductivityDashboard';
 import { GoalsView } from './components/GoalsView';
 import { FlashcardsView } from './components/FlashcardsView';
 import { QuickSearchModal } from './components/QuickSearchModal';
+import { UserProfileModal } from './components/UserProfileModal';
 import { LoginScreen } from './components/LoginScreen';
-import { Sparkles, Bot } from 'lucide-react';
+import { Sparkles, Bot, User } from 'lucide-react';
 
 const MainApp: React.FC = () => {
   const { user, profile, loading } = useAuth();
@@ -33,6 +34,7 @@ const MainApp: React.FC = () => {
   const [currentTab, setCurrentTab] = useState<NavTab>('dashboard');
   const [isQuickSearchOpen, setIsQuickSearchOpen] = useState(false);
   const [isGeminiModalOpen, setIsGeminiModalOpen] = useState(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [initialRoomCode, setInitialRoomCode] = useState<string | null>(null);
   const [initialFriendCode, setInitialFriendCode] = useState<string | null>(null);
   const [initialPartnerCode, setInitialPartnerCode] = useState<string | null>(null);
@@ -111,6 +113,7 @@ const MainApp: React.FC = () => {
           }
         }}
         onOpenQuickSearch={() => setIsQuickSearchOpen(true)}
+        onOpenProfile={() => setIsProfileModalOpen(true)}
       />
 
       {/* Main Content Area */}
@@ -155,7 +158,29 @@ const MainApp: React.FC = () => {
               onClick={() => setCurrentTab('friends')}
               className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/[0.05] border border-white/[0.08] text-slate-300 text-xs font-semibold hover:bg-white/[0.1] transition-colors cursor-pointer"
             >
-              <span>Code: {profile?.friendCode}</span>
+              <span>Code: {profile?.friendCode || 'ST-????'}</span>
+            </button>
+
+            {/* User Profile Avatar Trigger */}
+            <button
+              onClick={() => setIsProfileModalOpen(true)}
+              title="Click to view & edit scholar profile"
+              className="flex items-center gap-2 p-1 pl-2 rounded-full bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] transition-colors cursor-pointer"
+            >
+              <span className="text-xs font-semibold text-white hidden lg:inline max-w-[100px] truncate">
+                {profile?.displayName || user?.displayName || 'Scholar'}
+              </span>
+              {profile?.photoURL || user?.photoURL ? (
+                <img
+                  src={profile?.photoURL || user?.photoURL || ''}
+                  alt={profile?.displayName || 'User'}
+                  className="w-6 h-6 rounded-full border border-purple-500/40 object-cover"
+                />
+              ) : (
+                <div className="w-6 h-6 rounded-full bg-purple-600 text-white font-bold text-[10px] flex items-center justify-center">
+                  {(profile?.displayName || user?.displayName || 'S').charAt(0).toUpperCase()}
+                </div>
+              )}
             </button>
           </div>
         </div>
@@ -265,6 +290,12 @@ const MainApp: React.FC = () => {
           setCurrentTab('collab-notes');
           setIsGeminiModalOpen(false);
         }}
+      />
+
+      {/* User Profile & Account Settings Modal */}
+      <UserProfileModal
+        isOpen={isProfileModalOpen}
+        onClose={() => setIsProfileModalOpen(false)}
       />
 
       {/* Quick Search Palette */}

@@ -29,6 +29,7 @@ import {
   ArrowRightLeft,
   Circle
 } from 'lucide-react';
+import { copyTextToClipboard } from '../lib/clipboard';
 import confetti from 'canvas-confetti';
 
 interface PartnershipData {
@@ -104,12 +105,28 @@ export const PartnerLiveView: React.FC<PartnerLiveViewProps> = ({ initialPartner
     return unsub;
   };
 
+  // Clean code extraction: handles both raw code ("ST-4K89") and pasted URLs (".../?partner=ST-4K89")
+  const extractCode = (raw: string): string => {
+    const trimmed = raw.trim();
+    if (trimmed.includes('partner=')) {
+      try {
+        const url = new URL(trimmed);
+        const code = url.searchParams.get('partner');
+        if (code) return code.toUpperCase();
+      } catch {
+        const match = trimmed.match(/partner=([A-Za-z0-9_-]+)/);
+        if (match && match[1]) return match[1].toUpperCase();
+      }
+    }
+    return trimmed.toUpperCase();
+  };
+
   // Connect with Partner
   const handleConnectPartner = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user || !profile || !partnerCodeInput.trim()) return;
 
-    const cleanCode = partnerCodeInput.trim().toUpperCase();
+    const cleanCode = extractCode(partnerCodeInput);
     if (cleanCode === profile.friendCode) {
       alert('You cannot pair with your own code!');
       return;
@@ -224,19 +241,23 @@ export const PartnerLiveView: React.FC<PartnerLiveViewProps> = ({ initialPartner
     }
   };
 
-  const copyMyPartnerLink = () => {
+  const copyMyPartnerLink = async () => {
     if (!profile?.friendCode) return;
     const link = `${window.location.origin}?partner=${profile.friendCode}`;
-    navigator.clipboard.writeText(link);
-    setCopiedLink(true);
-    setTimeout(() => setCopiedLink(false), 2000);
+    const success = await copyTextToClipboard(link);
+    if (success) {
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2500);
+    }
   };
 
-  const copyMyCode = () => {
+  const copyMyCode = async () => {
     if (!profile?.friendCode) return;
-    navigator.clipboard.writeText(profile.friendCode);
-    setCopiedCode(true);
-    setTimeout(() => setCopiedCode(false), 2000);
+    const success = await copyTextToClipboard(profile.friendCode);
+    if (success) {
+      setCopiedCode(true);
+      setTimeout(() => setCopiedCode(false), 2500);
+    }
   };
 
   const formatTimer = (secs: number) => {

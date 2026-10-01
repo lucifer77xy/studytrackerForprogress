@@ -27,7 +27,10 @@ interface AuthContextType {
   goals: StudyGoal[];
   loginWithGoogle: () => Promise<void>;
   loginWithGoogleCredential: (idToken: string) => Promise<void>;
-  quickLoginWithGoogleAccount: (email: string, name: string) => Promise<void>;
+  quickLoginWithGoogleAccount: (email: string, name?: string) => Promise<void>;
+  updateProfileDisplayName: (newName: string) => Promise<void>;
+  updateProfileDetails: (updates: { displayName?: string; photoURL?: string }) => Promise<void>;
+  regenerateFriendCode: () => Promise<string>;
   logout: () => Promise<void>;
   updateUserStatus: (status: 'idle' | 'studying' | 'break', subject?: string) => Promise<void>;
   addFriendByCode: (code: string) => Promise<{ success: boolean; message: string; friendName?: string }>;
@@ -38,6 +41,18 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+function formatNameFromEmail(email: string): string {
+  if (!email) return 'Scholar';
+  const userPart = email.split('@')[0];
+  const formatted = userPart
+    .replace(/[._-]+/g, ' ')
+    .split(' ')
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+  return formatted || 'Scholar';
+}
 
 function generateFriendCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -62,14 +77,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (currentUser) {
         setUser(currentUser);
         const userDocRef = doc(db, 'users', currentUser.uid);
+
+        // Derive true display name from Google account or email
+        let realName = currentUser.displayName;
+        if (!realName || realName.toLowerCase() === 'student' || realName.toLowerCase() === 'scholar') {
+          if (currentUser.email) {
+            realName = formatNameFromEmail(currentUser.email);
+          } else {
+            realName = 'Scholar';
+          }
+        }
+        const realPhoto = currentUser.photoURL || '';
+
         try {
           const snap = await getDoc(userDocRef);
           if (!snap.exists()) {
             const initialProfile: UserProfile = {
               id: currentUser.uid,
-              displayName: currentUser.displayName || 'Scholar',
+              displayName: realName,
               email: currentUser.email || '',
-              photoURL: currentUser.photoURL || '',
+              photoURL: realPhoto,
               friendCode: generateFriendCode(),
               level: 1,
               xp: 0,
@@ -86,7 +113,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             await setDoc(userDocRef, initialProfile);
             setProfile(initialProfile);
           } else {
-            setProfile(snap.data() as UserProfile);
+            const existing = snap.data() as UserProfile;
+            const finalName =
+              currentUser.displayName ||
+              (existing.displayName && existing.displayName.toLowerCase() !== 'student' ? existing.displayName : realName);
+            const finalPhoto = currentUser.photoURL || existing.photoURL || realPhoto;
+            const finalCode = existing.friendCode || generateFriendCode();
+
+            const needsSync =
+              existing.displayName !== finalName ||
+              existing.photoURL !== finalPhoto ||
+              !existing.friendCode;
+
+            if (needsSync) {
+              const updates: Partial<UserProfile> = {
+                displayName: finalName,
+                photoURL: finalPhoto,
+                friendCode: finalCode,
+                email: currentUser.email || existing.email,
+                updatedAt: new Date().toISOString()
+              };
+              await updateDoc(userDocRef, updates);
+              setProfile({ ...existing, ...updates });
+            } else {
+              setProfile(existing);
+            }
           }
         } catch (err) {
           handleFirestoreError(err, OperationType.GET, `users/${currentUser.uid}`);
@@ -103,11 +154,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const userDocRef = doc(db, 'users', parsed.uid);
             const snap = await getDoc(userDocRef);
             if (snap.exists()) {
-              setProfile(snap.data() as UserProfile);
+              const data = snap.data() as UserProfile;
+              setProfile(data);
             } else {
+              const derivedName = parsed.displayName && parsed.displayName.toLowerCase() !== 'student'
+                ? parsed.displayName
+                : formatNameFromEmail(parsed.email || 'scholar@study.app');
               setProfile({
                 id: parsed.uid,
-                displayName: parsed.displayName,
+                displayName: derivedName,
                 email: parsed.email,
                 photoURL: parsed.photoURL || '',
                 friendCode: 'ST-9284',
@@ -230,7 +285,55 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Actions
   const loginWithGoogle = async () => {
     try {
-      await signInWithPopup(auth, googleProvider);
+      const result = await signInWithPopup(auth, googleProvider);
+      const googleUser = result.user;
+      if (googleUser) {
+        setUser(googleUser);
+        const name =
+          googleUser.displayName && googleUser.displayName.toLowerCase() !== 'student'
+            ? googleUser.displayName
+            : formatNameFromEmail(googleUser.email || '');
+        const photo = googleUser.photoURL || '';
+        const userDocRef = doc(db, 'users', googleUser.uid);
+        try {
+          const snap = await getDoc(userDocRef);
+          if (snap.exists()) {
+            const existing = snap.data() as UserProfile;
+            const updates: Partial<UserProfile> = {
+              displayName: name,
+              photoURL: photo || existing.photoURL || '',
+              email: googleUser.email || existing.email,
+              friendCode: existing.friendCode || generateFriendCode(),
+              updatedAt: new Date().toISOString()
+            };
+            await updateDoc(userDocRef, updates);
+            setProfile({ ...existing, ...updates });
+          } else {
+            const initialProfile: UserProfile = {
+              id: googleUser.uid,
+              displayName: name,
+              email: googleUser.email || '',
+              photoURL: photo,
+              friendCode: generateFriendCode(),
+              level: 1,
+              xp: 0,
+              streak: 1,
+              bestStreak: 1,
+              totalMinutes: 0,
+              totalSessions: 0,
+              status: 'idle',
+              currentSubject: 'General Study',
+              friends: [],
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString()
+            };
+            await setDoc(userDocRef, initialProfile);
+            setProfile(initialProfile);
+          }
+        } catch (docErr) {
+          console.warn('Doc sync on login error:', docErr);
+        }
+      }
     } catch (err) {
       console.error('Google Sign-In failed:', err);
       throw err;
@@ -247,13 +350,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const quickLoginWithGoogleAccount = async (email: string, name: string) => {
+  const quickLoginWithGoogleAccount = async (email: string, name?: string) => {
     try {
       setLoading(true);
       const safeUid = 'usr_' + Math.abs(email.split('').reduce((a, b) => ((a << 5) - a + b.charCodeAt(0)) | 0, 0)).toString(36);
+      const derivedName = name?.trim() && name.toLowerCase() !== 'student'
+        ? name.trim()
+        : formatNameFromEmail(email);
       const customUser = {
         uid: safeUid,
-        displayName: name || email.split('@')[0],
+        displayName: derivedName,
         email: email,
         photoURL: ''
       };
@@ -266,7 +372,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (!snap.exists()) {
           const initialProfile: UserProfile = {
             id: safeUid,
-            displayName: customUser.displayName,
+            displayName: derivedName,
             email: customUser.email,
             photoURL: '',
             friendCode: generateFriendCode(),
@@ -285,13 +391,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           await setDoc(userDocRef, initialProfile);
           setProfile(initialProfile);
         } else {
-          setProfile(snap.data() as UserProfile);
+          const data = snap.data() as UserProfile;
+          const updatedName = derivedName || (data.displayName?.toLowerCase() !== 'student' ? data.displayName : formatNameFromEmail(email));
+          const updates = {
+            displayName: updatedName,
+            friendCode: data.friendCode || generateFriendCode(),
+            updatedAt: new Date().toISOString()
+          };
+          await updateDoc(userDocRef, updates);
+          setProfile({ ...data, ...updates });
         }
       } catch (err) {
         console.warn('Firestore fallback user profile used:', err);
         setProfile({
           id: safeUid,
-          displayName: customUser.displayName,
+          displayName: derivedName,
           email: customUser.email,
           photoURL: '',
           friendCode: 'ST-9284',
@@ -310,6 +424,50 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const regenerateFriendCode = async (): Promise<string> => {
+    if (!user) return 'ST-????';
+    const newCode = generateFriendCode();
+    try {
+      const userRef = doc(db, 'users', user.uid);
+      await updateDoc(userRef, { friendCode: newCode, updatedAt: new Date().toISOString() });
+      setProfile((prev) => (prev ? { ...prev, friendCode: newCode } : null));
+    } catch (err) {
+      console.error('Error regenerating friend code:', err);
+    }
+    return newCode;
+  };
+
+  const updateProfileDisplayName = async (newName: string) => {
+    if (!user || !newName.trim()) return;
+    const cleanName = newName.trim();
+    try {
+      const userDocRef = doc(db, 'users', user.uid);
+      await updateDoc(userDocRef, {
+        displayName: cleanName,
+        updatedAt: new Date().toISOString()
+      });
+      setProfile((prev) => (prev ? { ...prev, displayName: cleanName } : null));
+    } catch {
+      setProfile((prev) => (prev ? { ...prev, displayName: cleanName } : null));
+    }
+  };
+
+  const updateProfileDetails = async (updates: { displayName?: string; photoURL?: string }) => {
+    if (!user) return;
+    try {
+      const userRef = doc(db, 'users', user.uid);
+      const cleanUpdates: Partial<UserProfile> = {
+        updatedAt: new Date().toISOString()
+      };
+      if (updates.displayName?.trim()) cleanUpdates.displayName = updates.displayName.trim();
+      if (updates.photoURL !== undefined) cleanUpdates.photoURL = updates.photoURL.trim();
+      await updateDoc(userRef, cleanUpdates);
+      setProfile((prev) => (prev ? { ...prev, ...cleanUpdates } : null));
+    } catch (err) {
+      console.error('Error updating profile details:', err);
     }
   };
 
@@ -523,6 +681,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         loginWithGoogle,
         loginWithGoogleCredential,
         quickLoginWithGoogleAccount,
+        updateProfileDisplayName,
+        updateProfileDetails,
+        regenerateFriendCode,
         logout,
         updateUserStatus,
         addFriendByCode,

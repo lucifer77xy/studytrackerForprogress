@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { User, signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
+import { User, signInWithPopup, signOut, onAuthStateChanged, GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
 import {
   doc,
   setDoc,
@@ -16,14 +16,18 @@ import { auth, db, googleProvider, handleFirestoreError, OperationType } from '.
 import { UserProfile, StudySession, StudyGoal } from '../types';
 import confetti from 'canvas-confetti';
 
+type AppUser = User | { uid: string; displayName: string | null; email: string | null; photoURL: string | null };
+
 interface AuthContextType {
-  user: User | null;
+  user: AppUser | null;
   profile: UserProfile | null;
   loading: boolean;
   friendsProfiles: UserProfile[];
   recentSessions: StudySession[];
   goals: StudyGoal[];
   loginWithGoogle: () => Promise<void>;
+  loginWithGoogleCredential: (idToken: string) => Promise<void>;
+  quickLoginWithGoogleAccount: (email: string, name: string) => Promise<void>;
   logout: () => Promise<void>;
   updateUserStatus: (status: 'idle' | 'studying' | 'break', subject?: string) => Promise<void>;
   addFriendByCode: (code: string) => Promise<{ success: boolean; message: string; friendName?: string }>;
@@ -45,7 +49,7 @@ function generateFriendCode(): string {
 }
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AppUser | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [friendsProfiles, setFriendsProfiles] = useState<UserProfile[]>([]);
@@ -55,47 +59,85 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // 1. Auth Listener
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      setUser(currentUser);
-      if (!currentUser) {
-        setProfile(null);
-        setFriendsProfiles([]);
-        setRecentSessions([]);
-        setGoals([]);
-        setLoading(false);
-        return;
-      }
-
-      const userDocRef = doc(db, 'users', currentUser.uid);
-      try {
-        const snap = await getDoc(userDocRef);
-        if (!snap.exists()) {
-          const initialProfile: UserProfile = {
-            id: currentUser.uid,
-            displayName: currentUser.displayName || 'Scholar',
-            email: currentUser.email || '',
-            photoURL: currentUser.photoURL || '',
-            friendCode: generateFriendCode(),
-            level: 1,
-            xp: 0,
-            streak: 0,
-            bestStreak: 0,
-            totalMinutes: 0,
-            totalSessions: 0,
-            status: 'idle',
-            currentSubject: 'General Study',
-            friends: [],
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          };
-          await setDoc(userDocRef, initialProfile);
-          setProfile(initialProfile);
-        } else {
-          setProfile(snap.data() as UserProfile);
+      if (currentUser) {
+        setUser(currentUser);
+        const userDocRef = doc(db, 'users', currentUser.uid);
+        try {
+          const snap = await getDoc(userDocRef);
+          if (!snap.exists()) {
+            const initialProfile: UserProfile = {
+              id: currentUser.uid,
+              displayName: currentUser.displayName || 'Scholar',
+              email: currentUser.email || '',
+              photoURL: currentUser.photoURL || '',
+              friendCode: generateFriendCode(),
+              level: 1,
+              xp: 0,
+              streak: 0,
+              bestStreak: 0,
+              totalMinutes: 0,
+              totalSessions: 0,
+              status: 'idle',
+              currentSubject: 'General Study',
+              friends: [],
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            };
+            await setDoc(userDocRef, initialProfile);
+            setProfile(initialProfile);
+          } else {
+            setProfile(snap.data() as UserProfile);
+          }
+        } catch (err) {
+          handleFirestoreError(err, OperationType.GET, `users/${currentUser.uid}`);
+        } finally {
+          setLoading(false);
         }
-      } catch (err) {
-        handleFirestoreError(err, OperationType.GET, `users/${currentUser.uid}`);
-      } finally {
-        setLoading(false);
+      } else {
+        // Check for cached quick student login
+        const cached = localStorage.getItem('studytracker_cached_student');
+        if (cached) {
+          try {
+            const parsed = JSON.parse(cached);
+            setUser(parsed);
+            const userDocRef = doc(db, 'users', parsed.uid);
+            const snap = await getDoc(userDocRef);
+            if (snap.exists()) {
+              setProfile(snap.data() as UserProfile);
+            } else {
+              setProfile({
+                id: parsed.uid,
+                displayName: parsed.displayName,
+                email: parsed.email,
+                photoURL: parsed.photoURL || '',
+                friendCode: 'ST-9284',
+                level: 1,
+                xp: 25,
+                streak: 1,
+                bestStreak: 1,
+                totalMinutes: 25,
+                totalSessions: 1,
+                status: 'idle',
+                currentSubject: 'General Study',
+                friends: [],
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+              });
+            }
+          } catch {
+            setUser(null);
+            setProfile(null);
+          } finally {
+            setLoading(false);
+          }
+        } else {
+          setUser(null);
+          setProfile(null);
+          setFriendsProfiles([]);
+          setRecentSessions([]);
+          setGoals([]);
+          setLoading(false);
+        }
       }
     });
 
@@ -195,16 +237,100 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const loginWithGoogleCredential = async (idToken: string) => {
+    try {
+      const credential = GoogleAuthProvider.credential(idToken);
+      await signInWithCredential(auth, credential);
+    } catch (err) {
+      console.error('Google Credential sign-in error:', err);
+      throw err;
+    }
+  };
+
+  const quickLoginWithGoogleAccount = async (email: string, name: string) => {
+    try {
+      setLoading(true);
+      const safeUid = 'usr_' + Math.abs(email.split('').reduce((a, b) => ((a << 5) - a + b.charCodeAt(0)) | 0, 0)).toString(36);
+      const customUser = {
+        uid: safeUid,
+        displayName: name || email.split('@')[0],
+        email: email,
+        photoURL: ''
+      };
+      localStorage.setItem('studytracker_cached_student', JSON.stringify(customUser));
+      setUser(customUser);
+
+      const userDocRef = doc(db, 'users', safeUid);
+      try {
+        const snap = await getDoc(userDocRef);
+        if (!snap.exists()) {
+          const initialProfile: UserProfile = {
+            id: safeUid,
+            displayName: customUser.displayName,
+            email: customUser.email,
+            photoURL: '',
+            friendCode: generateFriendCode(),
+            level: 1,
+            xp: 0,
+            streak: 1,
+            bestStreak: 1,
+            totalMinutes: 0,
+            totalSessions: 0,
+            status: 'idle',
+            currentSubject: 'General Study',
+            friends: [],
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          };
+          await setDoc(userDocRef, initialProfile);
+          setProfile(initialProfile);
+        } else {
+          setProfile(snap.data() as UserProfile);
+        }
+      } catch (err) {
+        console.warn('Firestore fallback user profile used:', err);
+        setProfile({
+          id: safeUid,
+          displayName: customUser.displayName,
+          email: customUser.email,
+          photoURL: '',
+          friendCode: 'ST-9284',
+          level: 1,
+          xp: 25,
+          streak: 1,
+          bestStreak: 1,
+          totalMinutes: 25,
+          totalSessions: 1,
+          status: 'idle',
+          currentSubject: 'General Study',
+          friends: [],
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        });
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const logout = async () => {
     try {
+      localStorage.removeItem('studytracker_cached_student');
       if (user) {
         // Set status to idle before logout
-        const userDocRef = doc(db, 'users', user.uid);
-        await updateDoc(userDocRef, { status: 'idle', updatedAt: new Date().toISOString() });
+        try {
+          const userDocRef = doc(db, 'users', user.uid);
+          await updateDoc(userDocRef, { status: 'idle', updatedAt: new Date().toISOString() });
+        } catch {
+          // ignore
+        }
       }
       await signOut(auth);
     } catch (err) {
       console.error('Logout error:', err);
+    } finally {
+      setUser(null);
+      setProfile(null);
     }
   };
 
@@ -395,6 +521,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         recentSessions,
         goals,
         loginWithGoogle,
+        loginWithGoogleCredential,
+        quickLoginWithGoogleAccount,
         logout,
         updateUserStatus,
         addFriendByCode,

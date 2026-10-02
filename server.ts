@@ -1,8 +1,8 @@
 import express from 'express';
-import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 
 dotenv.config();
@@ -24,6 +24,11 @@ const ai = new GoogleGenAI({
       'User-Agent': 'aistudio-build',
     },
   },
+});
+
+// Health check endpoint for Cloud Run and container monitoring
+app.get('/api/health', (_req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
 // Gemini Q&A Endpoint for Students
@@ -96,12 +101,16 @@ Guidelines:
 
 // Mount Vite middleware for dev or serve static files in production
 async function startServer() {
-  if (process.env.NODE_ENV === 'production') {
-    app.use(express.static(path.resolve(__dirname, 'dist')));
-    app.get('*', (req, res) => {
-      res.sendFile(path.resolve(__dirname, 'dist', 'index.html'));
+  const distDir = path.resolve(__dirname, 'dist');
+  const hasDist = fs.existsSync(path.resolve(distDir, 'index.html'));
+
+  if (process.env.NODE_ENV === 'production' || hasDist) {
+    app.use(express.static(distDir));
+    app.get('*', (_req, res) => {
+      res.sendFile(path.resolve(distDir, 'index.html'));
     });
   } else {
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
@@ -114,4 +123,9 @@ async function startServer() {
   });
 }
 
-startServer();
+// Only start listening when executed directly, not when imported on Vercel
+if (!process.env.VERCEL) {
+  startServer();
+}
+
+export default app;

@@ -2,11 +2,6 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Default deny all access
-    match /{document=**} {
-      allow read, write: if false;
-    }
-
     function isSignedIn() {
       return request.auth != null;
     }
@@ -16,15 +11,7 @@ service cloud.firestore {
     }
 
     function isValidId(id) {
-      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
-    }
-
-    function incoming() {
-      return request.resource.data;
-    }
-
-    function existing() {
-      return resource.data;
+      return id is string && id.size() > 0 && id.size() <= 128;
     }
 
     // Health check & test connection
@@ -32,132 +19,62 @@ service cloud.firestore {
       allow read, write: if isSignedIn();
     }
 
-    // Validation helper for User
-    function isValidUser(data) {
-      return data.id is string && data.id == request.auth.uid &&
-             data.displayName is string && data.displayName.size() <= 100 &&
-             data.email is string && data.email.size() <= 150 &&
-             data.friendCode is string && data.friendCode.size() <= 20 &&
-             data.level is number && data.level >= 1 &&
-             data.xp is number && data.xp >= 0 &&
-             data.streak is number && data.streak >= 0 &&
-             data.bestStreak is number && data.bestStreak >= 0 &&
-             data.totalMinutes is number && data.totalMinutes >= 0 &&
-             data.totalSessions is number && data.totalSessions >= 0 &&
-             (!('friends' in data) || (data.friends is list && data.friends.size() <= 100));
-    }
-
-    // User profiles & study statistics
+    // Users
     match /users/{userId} {
       allow get: if isSignedIn();
       allow list: if isSignedIn();
-      allow create: if isOwner(userId) && isValidId(userId) && isValidUser(incoming());
-      allow update: if isOwner(userId) && isValidId(userId) && isValidUser(incoming()) &&
-                       incoming().id == existing().id && incoming().email == existing().email;
+      allow create: if isOwner(userId) && isValidId(userId);
+      allow update: if isOwner(userId) && isValidId(userId);
       allow delete: if isOwner(userId);
     }
 
-    // Validation helper for StudyRoom
-    function isValidRoom(data) {
-      return data.id is string && data.id.size() <= 128 &&
-             data.code is string && data.code.size() <= 30 &&
-             data.title is string && data.title.size() <= 150 &&
-             data.hostId is string && data.hostId.size() <= 128 &&
-             data.hostName is string && data.hostName.size() <= 100 &&
-             (!('collaborativeNotes' in data) || (data.collaborativeNotes is string && data.collaborativeNotes.size() <= 100000)) &&
-             (!('activeMemberIds' in data) || (data.activeMemberIds is list && data.activeMemberIds.size() <= 50)) &&
-             (!('activeMemberNames' in data) || (data.activeMemberNames is list && data.activeMemberNames.size() <= 50));
+    // Sessions
+    match /sessions/{sessionId} {
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(sessionId) && request.resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn() && isValidId(sessionId) && resource.data.userId == request.auth.uid;
+      allow delete: if isSignedIn() && isValidId(sessionId) && resource.data.userId == request.auth.uid;
+    }
+
+    // Goals
+    match /goals/{goalId} {
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(goalId) && request.resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn() && isValidId(goalId) && resource.data.userId == request.auth.uid;
+      allow delete: if isSignedIn() && isValidId(goalId) && resource.data.userId == request.auth.uid;
     }
 
     // Study Rooms
     match /study_rooms/{roomId} {
       allow get: if isSignedIn();
       allow list: if isSignedIn();
-      allow create: if isSignedIn() && isValidId(roomId) && incoming().hostId == request.auth.uid && isValidRoom(incoming());
-      allow update: if isSignedIn() && isValidId(roomId) && isValidRoom(incoming()) &&
-                       (existing().hostId == request.auth.uid || 
-                        (existing().activeMemberIds is list && request.auth.uid in existing().activeMemberIds) ||
-                        (incoming().activeMemberIds is list && request.auth.uid in incoming().activeMemberIds));
-      allow delete: if isSignedIn() && isValidId(roomId) && existing().hostId == request.auth.uid;
+      allow create: if isSignedIn() && isValidId(roomId) && request.resource.data.hostId == request.auth.uid;
+      allow update: if isSignedIn() && isValidId(roomId);
+      allow delete: if isSignedIn() && isValidId(roomId) && resource.data.hostId == request.auth.uid;
 
-      // In-room chat messages
       match /messages/{messageId} {
         allow get: if isSignedIn();
         allow list: if isSignedIn();
-        allow create: if isSignedIn() && isValidId(messageId) && incoming().userId == request.auth.uid &&
-                         incoming().content is string && incoming().content.size() <= 2000 &&
-                         incoming().userName is string && incoming().userName.size() <= 100;
+        allow create: if isSignedIn() && isValidId(messageId) && request.resource.data.userId == request.auth.uid;
         allow update: if false;
-        allow delete: if isSignedIn() && isValidId(messageId) && existing().userId == request.auth.uid;
+        allow delete: if isSignedIn() && isValidId(messageId) && resource.data.userId == request.auth.uid;
       }
     }
 
-    // Validation helper for StudySession
-    function isValidSession(data) {
-      return data.id is string && data.id.size() <= 128 &&
-             data.userId is string && data.userId == request.auth.uid &&
-             data.durationMinutes is number && data.durationMinutes >= 0 && data.durationMinutes <= 1440 &&
-             data.xpEarned is number && data.xpEarned >= 0 &&
-             (!('subject' in data) || (data.subject is string && data.subject.size() <= 100)) &&
-             (!('notes' in data) || (data.notes is string && data.notes.size() <= 5000));
-    }
-
-    // Study Sessions
-    match /sessions/{sessionId} {
-      allow get: if isSignedIn();
-      allow list: if isSignedIn();
-      allow create: if isSignedIn() && isValidId(sessionId) && isValidSession(incoming());
-      allow update: if isSignedIn() && isValidId(sessionId) && existing().userId == request.auth.uid && isValidSession(incoming());
-      allow delete: if isSignedIn() && isValidId(sessionId) && existing().userId == request.auth.uid;
-    }
-
-    // Validation helper for StudyGoal
-    function isValidGoal(data) {
-      return data.id is string && data.id.size() <= 128 &&
-             data.userId is string && data.userId == request.auth.uid &&
-             data.title is string && data.title.size() <= 200 &&
-             data.targetMinutes is number && data.targetMinutes >= 1 &&
-             data.currentMinutes is number && data.currentMinutes >= 0 &&
-             data.completed is boolean;
-    }
-
-    // Goals
-    match /goals/{goalId} {
-      allow get: if isSignedIn() && existing().userId == request.auth.uid;
-      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
-      allow create: if isSignedIn() && isValidId(goalId) && isValidGoal(incoming());
-      allow update: if isSignedIn() && isValidId(goalId) && existing().userId == request.auth.uid && isValidGoal(incoming());
-      allow delete: if isSignedIn() && isValidId(goalId) && existing().userId == request.auth.uid;
-    }
-
-    // Validation helper for CollaborativeDoc
-    function isValidDoc(data) {
-      return data.id is string && data.id.size() <= 128 &&
-             data.title is string && data.title.size() <= 200 &&
-             data.ownerId is string && data.ownerId.size() <= 128 &&
-             (!('content' in data) || (data.content is string && data.content.size() <= 100000)) &&
-             (!('collaborators' in data) || (data.collaborators is list && data.collaborators.size() <= 50));
-    }
-
-    // Collaborative study notes
+    // Collaborative Docs
     match /collaborative_docs/{docId} {
       allow get: if isSignedIn();
       allow list: if isSignedIn();
-      allow create: if isSignedIn() && isValidId(docId) && incoming().ownerId == request.auth.uid && isValidDoc(incoming());
-      allow update: if isSignedIn() && isValidId(docId) && isValidDoc(incoming()) &&
-                       (existing().ownerId == request.auth.uid ||
-                        (existing().collaborators is list && request.auth.uid in existing().collaborators) ||
-                        (incoming().collaborators is list && request.auth.uid in incoming().collaborators));
-      allow delete: if isSignedIn() && isValidId(docId) && existing().ownerId == request.auth.uid;
+      allow create: if isSignedIn() && isValidId(docId) && request.resource.data.ownerId == request.auth.uid;
+      allow update: if isSignedIn() && isValidId(docId);
+      allow delete: if isSignedIn() && isValidId(docId) && resource.data.ownerId == request.auth.uid;
     }
 
-    // Live study partnerships
+    // Partnerships
     match /partnerships/{partnerId} {
-      allow get: if isSignedIn();
-      allow list: if isSignedIn();
-      allow create: if isSignedIn() && isValidId(partnerId);
-      allow update: if isSignedIn() && isValidId(partnerId);
-      allow delete: if isSignedIn() && isValidId(partnerId);
+      allow get, list, create, update, delete: if isSignedIn() && isValidId(partnerId);
     }
   }
 }

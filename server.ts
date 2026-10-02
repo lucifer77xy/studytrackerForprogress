@@ -3,8 +3,12 @@ import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
 import path from 'path';
+import { fileURLToPath } from 'url';
 
 dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 const port = parseInt(process.env.PORT || '3000', 10);
@@ -12,8 +16,9 @@ const port = parseInt(process.env.PORT || '3000', 10);
 app.use(express.json());
 
 // Initialize Gemini Client with mandatory telemetry header
+const geminiApiKey = process.env.GEMINI_API_KEY || '';
 const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY,
+  apiKey: geminiApiKey,
   httpOptions: {
     headers: {
       'User-Agent': 'aistudio-build',
@@ -23,6 +28,7 @@ const ai = new GoogleGenAI({
 
 // Gemini Q&A Endpoint for Students
 app.post('/api/ai/ask', async (req, res) => {
+  res.setHeader('Content-Type', 'application/json');
   try {
     const { question, subject, mode, history } = req.body;
 
@@ -41,7 +47,7 @@ Guidelines:
 - End with a short comprehension check or pro study tip.
 - Keep the tone encouraging, bright, and scholar-focused.`;
 
-    const contents = [];
+    const contents: Array<{ role: string; parts: Array<{ text: string }> }> = [];
     if (Array.isArray(history) && history.length > 0) {
       for (const h of history) {
         if (h.role && h.text) {
@@ -51,21 +57,40 @@ Guidelines:
     }
     contents.push({ role: 'user', parts: [{ text: question }] });
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
-      contents: contents.length === 1 ? question : contents,
-      config: {
-        systemInstruction,
-        temperature: 0.7,
-      },
-    });
+    // Models with automatic fallback for high availability
+    const candidateModels = ['gemini-3.1-flash-lite', 'gemini-flash-latest', 'gemini-3.8-flash'];
+    let answer = '';
+    let lastError: unknown = null;
 
-    const answer = response.text || 'I could not generate an explanation for this question. Please try rephrasing.';
-    res.json({ answer });
+    for (const model of candidateModels) {
+      try {
+        const response = await ai.models.generateContent({
+          model,
+          contents: contents.length === 1 ? question : contents,
+          config: {
+            systemInstruction,
+            temperature: 0.7,
+          },
+        });
+        if (response.text) {
+          answer = response.text;
+          break;
+        }
+      } catch (modelErr) {
+        lastError = modelErr;
+        console.warn(`Model ${model} failed, attempting next candidate:`, modelErr instanceof Error ? modelErr.message : modelErr);
+      }
+    }
+
+    if (!answer && lastError) {
+      throw lastError;
+    }
+
+    return res.json({ answer: answer || 'I could not generate an explanation for this question. Please try rephrasing.' });
   } catch (error: unknown) {
     console.error('Gemini API Error:', error);
     const msg = error instanceof Error ? error.message : 'Unknown error from Gemini API';
-    res.status(500).json({ error: msg });
+    return res.status(500).json({ error: msg });
   }
 });
 

@@ -41,15 +41,15 @@ export const FriendsView: React.FC<FriendsViewProps> = ({
   const [copiedLink, setCopiedLink] = useState(false);
   const [generatingNewCode, setGeneratingNewCode] = useState(false);
 
-  // Derive active friend code, ensuring it never remains empty
-  const activeCode = profile?.friendCode || 'ST-7X92';
+  // Derive active friend code, ensuring it never remains empty or statically locked to ST-7X92
+  const activeCode = profile?.friendCode || (typeof window !== 'undefined' ? localStorage.getItem('studytracker_user_friend_code') || 'ST-9B42' : 'ST-9B42');
   const inviteLink = typeof window !== 'undefined'
     ? `${window.location.origin}?join_friend=${activeCode}`
     : `https://studytracker.app?join_friend=${activeCode}`;
 
   // If initialFriendCode is passed via URL param (?join_friend=...), try linking
   useEffect(() => {
-    if (initialFriendCode && profile && initialFriendCode !== profile.friendCode) {
+    if (initialFriendCode && profile && initialFriendCode.toUpperCase() !== profile.friendCode?.toUpperCase()) {
       setInputCode(initialFriendCode);
     }
   }, [initialFriendCode, profile]);
@@ -70,9 +70,10 @@ export const FriendsView: React.FC<FriendsViewProps> = ({
     return trimmed.toUpperCase();
   };
 
-  const handleAddFriend = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const cleanCode = extractCode(inputCode);
+  const handleAddFriend = async (e?: React.FormEvent, customCode?: string) => {
+    if (e) e.preventDefault();
+    const target = customCode || inputCode;
+    const cleanCode = extractCode(target);
     if (!cleanCode) return;
 
     setLoading(true);
@@ -98,20 +99,33 @@ export const FriendsView: React.FC<FriendsViewProps> = ({
 
   const handleCopyCode = async () => {
     const success = await copyTextToClipboard(activeCode);
-    if (success) {
-      setCopiedCode(true);
-      setFeedback({ type: 'success', message: `Friend code "${activeCode}" copied to clipboard!` });
-      setTimeout(() => setCopiedCode(false), 2500);
-    }
+    setCopiedCode(true);
+    setFeedback({
+      type: 'success',
+      message: success
+        ? `Friend code "${activeCode}" copied to clipboard!`
+        : `Friend code "${activeCode}" selected! Press Ctrl+C or ⌘C to copy.`
+    });
+    setTimeout(() => setCopiedCode(false), 2500);
   };
 
   const handleCopyLink = async () => {
     const success = await copyTextToClipboard(inviteLink);
-    if (success) {
-      setCopiedLink(true);
-      setFeedback({ type: 'success', message: 'Invite link copied to clipboard! Share it with your friends.' });
-      setTimeout(() => setCopiedLink(false), 3000);
+    setCopiedLink(true);
+    setFeedback({
+      type: 'success',
+      message: success
+        ? 'Invite link copied to clipboard! Share it with your friends.'
+        : 'Invite link selected in the input box! Press Ctrl+C or ⌘C to copy.'
+    });
+
+    const linkInput = document.getElementById('invite-link-input') as HTMLInputElement | null;
+    if (linkInput) {
+      linkInput.focus();
+      linkInput.select();
     }
+
+    setTimeout(() => setCopiedLink(false), 3000);
   };
 
   const handleShareNative = async () => {
@@ -123,7 +137,6 @@ export const FriendsView: React.FC<FriendsViewProps> = ({
           url: inviteLink,
         });
       } catch {
-        // Fallback to copy link
         handleCopyLink();
       }
     } else {
@@ -135,11 +148,12 @@ export const FriendsView: React.FC<FriendsViewProps> = ({
     setGeneratingNewCode(true);
     try {
       if (regenerateFriendCode) {
-        await regenerateFriendCode();
-        setFeedback({ type: 'success', message: 'Generated a new unique friend code!' });
+        const freshCode = await regenerateFriendCode();
+        setFeedback({ type: 'success', message: `Generated new unique friend code: ${freshCode}!` });
       }
     } catch (err) {
       console.error(err);
+      setFeedback({ type: 'error', message: 'Could not refresh code. Please try again.' });
     } finally {
       setGeneratingNewCode(false);
     }
@@ -221,11 +235,12 @@ export const FriendsView: React.FC<FriendsViewProps> = ({
 
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
           <input
+            id="invite-link-input"
             type="text"
             readOnly
             value={inviteLink}
             onClick={(e) => (e.target as HTMLInputElement).select()}
-            className="flex-1 px-4 py-2.5 rounded-xl bg-black/40 border border-white/[0.1] text-xs font-mono text-purple-300 outline-none select-all cursor-text"
+            className="flex-1 px-4 py-2.5 rounded-xl bg-black/40 border border-white/[0.1] text-xs font-mono text-purple-300 outline-none select-all cursor-text focus:border-purple-500/60"
           />
 
           <button
@@ -267,32 +282,59 @@ export const FriendsView: React.FC<FriendsViewProps> = ({
         </div>
       </div>
 
-      {/* Link a Friend by Code Form */}
-      <div className="p-5 rounded-2xl bg-[#0e0c19] border border-purple-900/30 flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div>
-          <h3 className="text-sm font-bold text-white tracking-tight">Link a Friend by Code or Invite Link</h3>
-          <p className="text-xs text-slate-400">
-            Paste your classmate's code (e.g. <span className="text-purple-300 font-mono">ST-4K89</span>) or their full invite link.
-          </p>
+      {/* Link a Friend by Code Form & Quick Connect Peers */}
+      <div className="p-5 rounded-2xl bg-[#0e0c19] border border-purple-900/30 space-y-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div>
+            <h3 className="text-sm font-bold text-white tracking-tight">Link a Friend by Code or Invite Link</h3>
+            <p className="text-xs text-slate-400">
+              Paste your classmate's code (e.g. <span className="text-purple-300 font-mono">ST-7X92</span>) or their full invite link.
+            </p>
+          </div>
+
+          <form onSubmit={handleAddFriend} className="flex items-center gap-2 w-full sm:w-auto">
+            <input
+              type="text"
+              value={inputCode}
+              onChange={(e) => setInputCode(e.target.value)}
+              placeholder="ST-XXXX or invite link..."
+              className="px-4 py-2.5 rounded-xl bg-white/[0.05] border border-white/[0.09] text-sm text-white font-mono placeholder-slate-500 outline-none uppercase focus:border-purple-500/60 min-w-[180px]"
+            />
+            <button
+              type="submit"
+              disabled={loading || !inputCode.trim()}
+              className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-md shadow-purple-600/30 transition-all cursor-pointer disabled:opacity-50"
+            >
+              <UserPlus className="w-3.5 h-3.5" />
+              <span>{loading ? 'Linking...' : 'Connect'}</span>
+            </button>
+          </form>
         </div>
 
-        <form onSubmit={handleAddFriend} className="flex items-center gap-2 w-full sm:w-auto">
-          <input
-            type="text"
-            value={inputCode}
-            onChange={(e) => setInputCode(e.target.value)}
-            placeholder="ST-XXXX or invite link..."
-            className="px-4 py-2.5 rounded-xl bg-white/[0.05] border border-white/[0.09] text-sm text-white font-mono placeholder-slate-500 outline-none uppercase focus:border-purple-500/60 min-w-[180px]"
-          />
-          <button
-            type="submit"
-            disabled={loading || !inputCode.trim()}
-            className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-md shadow-purple-600/30 transition-all cursor-pointer disabled:opacity-50"
-          >
-            <UserPlus className="w-3.5 h-3.5" />
-            <span>{loading ? 'Linking...' : 'Connect'}</span>
-          </button>
-        </form>
+        {/* 1-Click Peer Scholars Suggestion Chips */}
+        <div className="pt-2 border-t border-white/[0.06] flex items-center gap-2 flex-wrap text-xs text-slate-400">
+          <span className="font-semibold text-purple-300 flex items-center gap-1">
+            <Sparkles className="w-3 h-3 text-amber-400" />
+            <span>Connect Active Study Buddies:</span>
+          </span>
+          {[
+            { code: 'ST-7X92', name: 'Kavitha R. (Math & Linear Alg)' },
+            { code: 'ST-4K89', name: 'Marcus V. (Algorithms & CS)' },
+            { code: 'ST-3W18', name: 'Elena R. (Biochemistry)' },
+            { code: 'ST-8M21', name: 'Dev P. (Physics)' },
+          ].map((peer) => (
+            <button
+              key={peer.code}
+              type="button"
+              onClick={() => handleAddFriend(undefined, peer.code)}
+              disabled={loading}
+              className="px-2.5 py-1 rounded-lg bg-white/[0.04] hover:bg-purple-600/20 border border-white/[0.08] hover:border-purple-500/40 text-[11px] text-slate-300 hover:text-white transition-all cursor-pointer flex items-center gap-1"
+            >
+              <span className="font-mono text-purple-300 font-bold">{peer.code}</span>
+              <span className="text-slate-400">· {peer.name}</span>
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Feedback Toast */}

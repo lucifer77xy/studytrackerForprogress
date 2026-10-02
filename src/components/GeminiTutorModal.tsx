@@ -79,8 +79,21 @@ export const GeminiTutorModal: React.FC<GeminiTutorModalProps> = ({
         })
       });
 
-      const data = await res.json();
-      if (!res.ok) {
+      const contentType = res.headers.get('content-type') || '';
+      let data: { answer?: string; error?: string } = {};
+
+      if (contentType.includes('application/json')) {
+        data = await res.json();
+      } else {
+        const rawText = await res.text();
+        try {
+          data = JSON.parse(rawText);
+        } catch {
+          data = { error: rawText.slice(0, 160) || `Server error (${res.status})` };
+        }
+      }
+
+      if (!res.ok || !data.answer) {
         throw new Error(data.error || 'Failed to get answer from Gemini');
       }
 
